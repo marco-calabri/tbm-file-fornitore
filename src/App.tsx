@@ -423,6 +423,63 @@ export default function App() {
     }
   };
 
+  // Export organized ZIP file for the currently selected supplier filter
+  const handleDownloadZIPFiltrati = async () => {
+    if (processedRows.length === 0) return;
+    
+    const supplierToFilter = selectedSupplierFilter;
+    if (!supplierToFilter || supplierToFilter === 'ALL') {
+      alert("Seleziona prima un fornitore specifico nel filtro a tendina dei Fornitori.");
+      return;
+    }
+
+    try {
+      const filteredRowsList = processedRows.filter(r => {
+        const fornitore = (r.excelRow.fornitore || '').trim().toUpperCase();
+        return fornitore === supplierToFilter.trim().toUpperCase();
+      });
+
+      if (filteredRowsList.length === 0) {
+        alert(`Nessun articolo trovato per il fornitore '${supplierToFilter}'.`);
+        return;
+      }
+
+      const hasMatchedFiles = filteredRowsList.some(r => r.matchResult.status === 'Trovato e Copiato');
+      if (!hasMatchedFiles) {
+        alert(`Nessun disegno trovato e copiato per il fornitore '${supplierToFilter}'.`);
+        return;
+      }
+
+      setIsProcessing(true);
+      setProcessProgress(0);
+      setProcessStatusText(`Inizializzazione archivio ZIP per ${supplierToFilter}...`);
+
+      const zipBlob = await generateZIP(filteredRowsList, (percent, file) => {
+        setProcessProgress(percent);
+        setProcessStatusText(`Aggiunta file: ${file}`);
+      });
+
+      setProcessProgress(100);
+      setProcessStatusText("Compressione ultimata!");
+
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `File_Disegni_${supplierToFilter.replace(/\s+/g, '_')}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      setTimeout(() => {
+        setIsProcessing(false);
+      }, 500);
+    } catch (err) {
+      setIsProcessing(false);
+      alert(`Errore nella generazione dello ZIP per ${supplierToFilter}: ` + (err as Error).message);
+    }
+  };
+
   // Reset App
   const handleReset = () => {
     setExcelFile(null);
@@ -920,6 +977,14 @@ export default function App() {
                       title="Esporta archivio ZIP contenente solo i file del fornitore FALEGNAMERIA"
                     >
                       <FileArchive className="w-3.5 h-3.5" /> ZIP FALEGNAMERIA
+                    </button>
+                    <button 
+                      onClick={handleDownloadZIPFiltrati} 
+                      disabled={selectedSupplierFilter === 'ALL'}
+                      className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold text-[10px] py-1.5 px-3 rounded flex items-center gap-1 shadow-xs transition-all active:scale-[0.97] cursor-pointer uppercase tracking-wider"
+                      title={selectedSupplierFilter === 'ALL' ? "Filtra per un Fornitore per scaricare lo ZIP filtrato" : `Esporta archivio ZIP per il fornitore selezionato: ${selectedSupplierFilter}`}
+                    >
+                      <FileArchive className="w-3.5 h-3.5" /> ZIP FILTRATI
                     </button>
                   </div>
 
