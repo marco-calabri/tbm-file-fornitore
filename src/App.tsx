@@ -373,6 +373,56 @@ export default function App() {
     }
   };
 
+  // Export organized ZIP file specifically for supplier 'FALEGNAMERIA'
+  const handleDownloadZIPFalegnameria = async () => {
+    if (processedRows.length === 0) return;
+    try {
+      const falegnameriaRows = processedRows.filter(r => {
+        const fornitore = (r.excelRow.fornitore || '').trim().toUpperCase();
+        return fornitore === 'FALEGNAMERIA';
+      });
+
+      if (falegnameriaRows.length === 0) {
+        alert("Nessun articolo per il fornitore 'FALEGNAMERIA' trovato.");
+        return;
+      }
+
+      const hasMatchedFiles = falegnameriaRows.some(r => r.matchResult.status === 'Trovato e Copiato');
+      if (!hasMatchedFiles) {
+        alert("Nessun disegno trovato e copiato per il fornitore 'FALEGNAMERIA'.");
+        return;
+      }
+
+      setIsProcessing(true);
+      setProcessProgress(0);
+      setProcessStatusText("Inizializzazione archivio ZIP FALEGNAMERIA...");
+
+      const zipBlob = await generateZIP(falegnameriaRows, (percent, file) => {
+        setProcessProgress(percent);
+        setProcessStatusText(`Aggiunta file: ${file}`);
+      });
+
+      setProcessProgress(100);
+      setProcessStatusText("Compressione ultimata!");
+
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `File_Disegni_FALEGNAMERIA.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      setTimeout(() => {
+        setIsProcessing(false);
+      }, 500);
+    } catch (err) {
+      setIsProcessing(false);
+      alert("Errore nella generazione dello ZIP FALEGNAMERIA: " + (err as Error).message);
+    }
+  };
+
   // Reset App
   const handleReset = () => {
     setExcelFile(null);
@@ -863,6 +913,13 @@ export default function App() {
                       title="Esporta archivio ZIP strutturato per Fornitore"
                     >
                       <FileArchive className="w-3.5 h-3.5" /> ESPORTA ZIP
+                    </button>
+                    <button 
+                      onClick={handleDownloadZIPFalegnameria} 
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] py-1.5 px-3 rounded flex items-center gap-1 shadow-xs transition-all active:scale-[0.97] cursor-pointer uppercase tracking-wider"
+                      title="Esporta archivio ZIP contenente solo i file del fornitore FALEGNAMERIA"
+                    >
+                      <FileArchive className="w-3.5 h-3.5" /> ZIP FALEGNAMERIA
                     </button>
                   </div>
 
