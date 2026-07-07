@@ -1,0 +1,6 @@
+{
+  "name": "Cerca e Organizza File da Distinta",
+  "description": "Seleziona una distinta base Excel (.xlsx) per cercare ricorsivamente i file di progetto (.pdf, .dwg, .stp/.step) e organizzarli in cartelle suddivise per fornitore.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
