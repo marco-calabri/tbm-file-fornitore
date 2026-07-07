@@ -24,7 +24,8 @@ import {
   Database, 
   FolderSync,
   AlertTriangle,
-  Copy
+  Copy,
+  Files
 } from 'lucide-react';
 import { ExcelRow, ProjectFile, ProcessedRow, ColumnMapping, AppStats } from './types';
 import { 
@@ -36,6 +37,17 @@ import {
 } from './utils/fileMatcher';
 
 export default function App() {
+  // --- Custom Notification / Toast State ---
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showNotification = (message: string, type: 'success' | 'error' | 'info' = 'error') => {
+    setToast({ message, type });
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+      setToast(prev => prev?.message === message ? null : prev);
+    }, 5000);
+  };
+
   // --- File Inputs State ---
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
@@ -80,6 +92,7 @@ export default function App() {
 
   // Refs
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const filesInputRef = useRef<HTMLInputElement>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-detect columns when sheet data or mapping columns change
@@ -140,7 +153,7 @@ export default function App() {
         setSelectedSheet(firstSheet);
         loadSheetData(readWorkbook, firstSheet);
       } catch (err) {
-        alert("Errore nel caricamento del file Excel: " + (err as Error).message);
+        showNotification("Errore nel caricamento del file Excel: " + (err as Error).message, "error");
       }
     };
     reader.readAsArrayBuffer(file);
@@ -185,6 +198,19 @@ export default function App() {
     setProcessStatusText("Lettura file all'interno della cartella...");
     const parsed = parseFolderFiles(files);
     setProjectFiles(parsed);
+    showNotification(`Caricata con successo la cartella "${folderRootName}" (${parsed.length} file rilevati)`, 'success');
+  };
+
+  // Handle individual files selection (avoiding browser security popup)
+  const handleFilesUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setProjectFolderName("File Multipli Selezionati");
+    setProcessStatusText("Lettura file selezionati...");
+    const parsed = parseFolderFiles(files);
+    setProjectFiles(parsed);
+    showNotification(`Caricati con successo ${parsed.length} file disegni!`, 'success');
   };
 
   const parseFolderFiles = (fileList: FileList): ProjectFile[] => {
@@ -221,15 +247,15 @@ export default function App() {
   // Trigger main processing: Match files, copy mockly, generate stats
   const handleProcessSearch = async () => {
     if (rawExcelData.length === 0) {
-      alert("Carica un file Excel prima di elaborare!");
+      showNotification("Carica un file Excel prima di elaborare!", "error");
       return;
     }
     if (projectFiles.length === 0) {
-      alert("Seleziona una cartella progetto contenente file prima di elaborare!");
+      showNotification("Seleziona una cartella progetto contenente file prima di elaborare!", "error");
       return;
     }
     if (!mapping.codice) {
-      alert("Seleziona almeno la colonna per il 'Codice'!");
+      showNotification("Seleziona almeno la colonna per il 'Codice'!", "error");
       return;
     }
 
@@ -288,7 +314,7 @@ export default function App() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert("Errore nella generazione del file Excel: " + (err as Error).message);
+      showNotification("Errore nella generazione del file Excel: " + (err as Error).message, "error");
     }
   };
 
@@ -301,7 +327,7 @@ export default function App() {
     });
 
     if (ba1StpMissingRows.length === 0) {
-      alert("Nessun articolo BA1 con file .stp/.step mancante!");
+      showNotification("Nessun articolo BA1 con file .stp/.step mancante!", "info");
       return;
     }
 
@@ -335,7 +361,7 @@ export default function App() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      alert("Errore nella generazione dell'esportazione: " + (err as Error).message);
+      showNotification("Errore nella generazione dell'esportazione: " + (err as Error).message, "error");
     }
   };
 
@@ -369,7 +395,7 @@ export default function App() {
       }, 500);
     } catch (err) {
       setIsProcessing(false);
-      alert("Errore nella generazione dello ZIP: " + (err as Error).message);
+      showNotification("Errore nella generazione dello ZIP: " + (err as Error).message, "error");
     }
   };
 
@@ -383,13 +409,13 @@ export default function App() {
       });
 
       if (falegnameriaRows.length === 0) {
-        alert("Nessun articolo per il fornitore 'FALEGNAMERIA' trovato.");
+        showNotification("Nessun articolo per il fornitore 'FALEGNAMERIA' trovato.", "info");
         return;
       }
 
       const hasMatchedFiles = falegnameriaRows.some(r => r.matchResult.status === 'Trovato e Copiato');
       if (!hasMatchedFiles) {
-        alert("Nessun disegno trovato e copiato per il fornitore 'FALEGNAMERIA'.");
+        showNotification("Nessun disegno trovato e copiato per il fornitore 'FALEGNAMERIA'.", "info");
         return;
       }
 
@@ -419,7 +445,7 @@ export default function App() {
       }, 500);
     } catch (err) {
       setIsProcessing(false);
-      alert("Errore nella generazione dello ZIP FALEGNAMERIA: " + (err as Error).message);
+      showNotification("Errore nella generazione dello ZIP FALEGNAMERIA: " + (err as Error).message, "error");
     }
   };
 
@@ -429,7 +455,7 @@ export default function App() {
     
     const supplierToFilter = selectedSupplierFilter;
     if (!supplierToFilter || supplierToFilter === 'ALL') {
-      alert("Seleziona prima un fornitore specifico nel filtro a tendina dei Fornitori.");
+      showNotification("Seleziona prima un fornitore specifico nel filtro a tendina dei Fornitori.", "info");
       return;
     }
 
@@ -440,13 +466,13 @@ export default function App() {
       });
 
       if (filteredRowsList.length === 0) {
-        alert(`Nessun articolo trovato per il fornitore '${supplierToFilter}'.`);
+        showNotification(`Nessun articolo trovato per il fornitore '${supplierToFilter}'.`, "info");
         return;
       }
 
       const hasMatchedFiles = filteredRowsList.some(r => r.matchResult.status === 'Trovato e Copiato');
       if (!hasMatchedFiles) {
-        alert(`Nessun disegno trovato e copiato per il fornitore '${supplierToFilter}'.`);
+        showNotification(`Nessun disegno trovato e copiato per il fornitore '${supplierToFilter}'.`, "info");
         return;
       }
 
@@ -476,7 +502,7 @@ export default function App() {
       }, 500);
     } catch (err) {
       setIsProcessing(false);
-      alert(`Errore nella generazione dello ZIP per ${supplierToFilter}: ` + (err as Error).message);
+      showNotification(`Errore nella generazione dello ZIP per ${supplierToFilter}: ` + (err as Error).message, "error");
     }
   };
 
@@ -552,8 +578,23 @@ export default function App() {
   const hasActiveFilters = searchTerm !== '' || statusFilter !== 'ALL' || selectedSupplierFilter !== 'ALL' || selectedExtensionFilter !== 'ALL' || ba1StpMissingOnly;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden font-sans bg-[#f3f4f6]" id="main_app_layout">
+    <div className="flex flex-col h-screen overflow-hidden font-sans bg-[#f3f4f6] relative" id="main_app_layout">
       
+      {/* Floating Notifications / Toast Banner */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-[9999] max-w-sm w-full bg-white rounded-lg border shadow-2xl p-4 animate-in fade-in slide-in-from-top-4 duration-300 flex items-start gap-3" style={{ borderColor: toast.type === 'error' ? '#fecaca' : toast.type === 'success' ? '#bbf7d0' : '#bfdbfe' }}>
+          <div className="flex-1">
+            <h4 className="text-xs font-bold uppercase tracking-wider" style={{ color: toast.type === 'error' ? '#991b1b' : toast.type === 'success' ? '#166534' : '#1e40af' }}>
+              {toast.type === 'error' ? 'Attenzione / Errore' : toast.type === 'success' ? 'Operazione Completata' : 'Informazione'}
+            </h4>
+            <p className="text-slate-600 text-[11px] mt-1 leading-relaxed font-sans font-medium">{toast.message}</p>
+          </div>
+          <button onClick={() => setToast(null)} className="text-slate-400 hover:text-slate-600 transition-colors p-1 cursor-pointer">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Testata / Header (High Density Theme) */}
       <header className="h-14 bg-[#1e293b] text-white flex items-center justify-between px-6 shrink-0 shadow-md border-b border-slate-700" id="app_header">
         <div className="flex items-center gap-2.5">
@@ -698,38 +739,71 @@ export default function App() {
           </div>
 
           {/* Section 2: Folder Picker */}
-          <div className="space-y-2 pt-2 border-t border-slate-100">
+          <div className="space-y-2.5 pt-2.5 border-t border-slate-100">
             <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-              2. Seleziona Cartella Disegni
+              2. Seleziona Disegni / Cartella
             </label>
             
-            <div 
-              className={`border-2 border-dashed rounded-lg p-3 text-center cursor-pointer transition-colors ${
-                projectFiles.length > 0 ? 'border-indigo-200 bg-indigo-50/40' : 'border-slate-200 hover:border-blue-400 bg-slate-50/50'
-              }`} 
-              onClick={() => folderInputRef.current?.click()}
-            >
-              <input 
-                type="file" 
-                ref={folderInputRef} 
-                onChange={handleFolderUpload} 
-                webkitdirectory="true" 
-                directory="true" 
-                multiple 
-                className="hidden" 
-              />
-              <FolderOpen className={`w-6 h-6 mx-auto mb-1 ${projectFiles.length > 0 ? 'text-indigo-500' : 'text-slate-400'}`} />
+            {/* Split controls to give popup-free alternative */}
+            <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-lg">
+              <button
+                type="button"
+                onClick={() => filesInputRef.current?.click()}
+                className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-[9px] py-1.5 px-1 rounded border border-slate-200 shadow-xs flex flex-col items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 text-center leading-tight"
+                title="Consente di selezionare multipli file disegni. EVITA IL POPUP DI SICUREZZA."
+              >
+                <Files className="w-3.5 h-3.5 text-blue-500" />
+                <span>Scegli File<br/><span className="text-[7px] text-emerald-600 font-medium font-mono">(Senza Popup)</span></span>
+              </button>
+              <button
+                type="button"
+                onClick={() => folderInputRef.current?.click()}
+                className="bg-white hover:bg-slate-50 text-slate-700 font-bold text-[9px] py-1.5 px-1 rounded border border-slate-200 shadow-xs flex flex-col items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 text-center leading-tight"
+                title="Consente di selezionare un'intera cartella locale (Mostra popup browser)."
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-indigo-500" />
+                <span>Carica Cartella<br/><span className="text-[7px] text-slate-400 font-medium font-mono">(Popup Browser)</span></span>
+              </button>
+            </div>
+
+            {/* Hidden native input elements */}
+            <input 
+              type="file" 
+              ref={folderInputRef} 
+              onChange={handleFolderUpload} 
+              webkitdirectory="true" 
+              directory="true" 
+              multiple 
+              className="hidden" 
+            />
+            <input 
+              type="file" 
+              ref={filesInputRef} 
+              onChange={handleFilesUpload} 
+              multiple 
+              className="hidden" 
+            />
+
+            {/* Status container */}
+            <div className={`border rounded-lg p-2.5 text-center transition-colors ${
+              projectFiles.length > 0 ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-200 bg-slate-50/20'
+            }`}>
               {projectFiles.length > 0 ? (
-                <div>
-                  <p className="text-xs font-semibold text-indigo-800 truncate px-2" title={projectFolderName}>
-                    {projectFolderName}
-                  </p>
-                  <p className="text-[9px] text-indigo-600 font-medium">{projectFiles.length} disegni scansionati</p>
+                <div className="flex items-center gap-2 text-left">
+                  <div className="p-1.5 bg-indigo-100 rounded-lg text-indigo-600 shrink-0">
+                    <FolderOpen className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-bold text-slate-700 truncate" title={projectFolderName}>
+                      {projectFolderName}
+                    </p>
+                    <p className="text-[9px] text-indigo-600 font-semibold">{projectFiles.length} file disegni pronti</p>
+                  </div>
                 </div>
               ) : (
-                <div>
-                  <p className="text-xs font-semibold text-slate-700">Seleziona cartella locale</p>
-                  <p className="text-[9px] text-slate-400">Cerca file .pdf, .dwg, .stp/.step</p>
+                <div className="py-1 text-slate-400">
+                  <p className="text-[11px] font-semibold text-slate-500">Nessun disegno caricato</p>
+                  <p className="text-[9px] text-slate-400">Usa uno dei due metodi sopra per caricare i file dei disegni (.pdf, .dwg, .stp/.step)</p>
                 </div>
               )}
             </div>
